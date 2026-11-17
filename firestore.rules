@@ -1,0 +1,35 @@
+rules_version = '2';
+
+// Solo el dueño (UID fijo abajo, el mismo valor que VITE_OWNER_UID) puede leer y
+// escribir su historial. Publica con: npx firebase-tools deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && uid == '5lcun6dgdebRyQ39xHZjLM6WIzC3';
+    }
+
+    function isValidSession() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['createdAt', 'wordCount', 'correct', 'incorrect', 'positions'])
+        && d.createdAt == request.time
+        && d.wordCount is int && d.wordCount >= 1 && d.wordCount <= 100
+        && d.correct is int && d.correct >= 0
+        && d.incorrect is int && d.incorrect >= 0
+        && d.correct + d.incorrect == d.wordCount
+        && d.positions is list && d.positions.size() == d.wordCount;
+    }
+
+    match /users/{uid}/sessions/{sessionId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidSession();
+      allow delete: if isOwner(uid);
+      allow update: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
